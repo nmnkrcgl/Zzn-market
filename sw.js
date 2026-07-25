@@ -18,6 +18,10 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
+  // Sadece GET isteklerini önbelleğe al; POST (canlı API sorguları) doğrudan ağa gitsin
+  if (event.request.method !== 'GET') {
+    return; // tarayıcının varsayılan davranışına bırak, cache.put çağrılmaz
+  }
   event.respondWith(
     caches.match(event.request).then((cached) => {
       return cached || fetch(event.request).then((response) => {

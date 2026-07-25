@@ -816,6 +816,10 @@ async function bulkUpdateVisible(){
     alert('Önce bir kategori seçin veya arama yapın, sonra güncelleyin.');
     return;
   }
+  if(cards.length > 50){
+    const ok = confirm(`${cards.length} ürünü tek tek güncellemek birkaç dakika sürebilir ve API'yi yoğun kullanır. Devam edilsin mi? (Önerimiz: arama kutusuyla daraltıp daha küçük gruplar halinde güncelleyin.)`);
+    if(!ok) return;
+  }
   const updateBtn = document.getElementById('updateBtn');
   const progressEl = document.getElementById('updateProgress');
   updateBtn.disabled = true;
@@ -829,8 +833,8 @@ async function bulkUpdateVisible(){
       const success = await liveUpdateCard(card, name);
       if(success) ok++; else fail++;
     }
-    // API'yi yormamak için istekler arasında kısa bekleme
-    await new Promise(r => setTimeout(r, 350));
+    // API'yi yormamak için istekler arasında bekleme
+    await new Promise(r => setTimeout(r, 500));
   }
   progressEl.textContent = `Bitti: ${ok} güncellendi, ${fail} başarısız.`;
   updateBtn.disabled = false;
