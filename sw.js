@@ -18,15 +18,18 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
-  // Sadece GET isteklerini önbelleğe al; POST (canlı API sorguları) doğrudan ağa gitsin
-  if (event.request.method !== 'GET') {
-    return; // tarayıcının varsayılan davranışına bırak, cache.put çağrılmaz
+  const url = event.request.url;
+  // Sadece GET + http/https isteklerini önbelleğe al.
+  // POST istekleri (canlı API sorguları) ve chrome-extension:// gibi diğer şemalar
+  // Cache API tarafından desteklenmez, bunları doğrudan ağa bırak.
+  if (event.request.method !== 'GET' || !url.startsWith('http')) {
+    return;
   }
   event.respondWith(
     caches.match(event.request).then((cached) => {
       return cached || fetch(event.request).then((response) => {
         const copy = response.clone();
-        caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
+        caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy)).catch(()=>{});
         return response;
       }).catch(() => cached);
     })
