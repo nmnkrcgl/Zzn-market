@@ -749,6 +749,16 @@ function fmt(n){
   return n.toLocaleString('tr-TR', {minimumFractionDigits:2, maximumFractionDigits:2}) + ' ₺';
 }
 
+function searchableName(p){
+  // "Ekonomik Paket" / "Aile Boyu" gerçek market veritabanında bulunmayan,
+  // sadece çeşitlilik için üretilmiş etiketlerdir; canlı sorguda çıkarılır.
+  const SYNTHETIC_PACKS = ['Ekonomik Paket', 'Aile Boyu'];
+  if(SYNTHETIC_PACKS.includes(p.weight)){
+    return p.name.replace(new RegExp('\\s*'+p.weight+'$'), '').trim();
+  }
+  return p.name;
+}
+
 function productCard(p){
   const rows = MARKETS.map(m => {
     const isBest = m === p.cheapestMarket;
@@ -784,7 +794,7 @@ function productCard(p){
     <div class="price-table">${rows}</div>
     <div class="prod-actions">
       <button class="btn buy-now-btn" data-id="${p.id}">🛒 Satın Al</button>
-      <button class="btn live-btn" data-name="${p.name.replace(/"/g,'&quot;')}">⟳ Canlı dene</button>
+      <button class="btn live-btn" data-name="${searchableName(p).replace(/"/g,'&quot;')}">⟳ Canlı dene</button>
       <button class="history-toggle-btn btn" data-id="${p.id}">📈 Fiyat geçmişi</button>
     </div>
     <div class="history-panel" id="hist-${p.id}">
@@ -973,13 +983,16 @@ async function liveUpdateCard(card, name){
         size: 24
       })
     });
-    if(!res.ok) throw new Error('HTTP '+res.status);
+    if(!res.ok){
+      statusEl.textContent = `✕ Sunucu hatası (HTTP ${res.status}).`;
+      return 'httperror';
+    }
     const data = await res.json();
-    console.log('marketfiyati.org.tr canlı yanıt:', data);
+    console.log('marketfiyati.org.tr canlı yanıt ('+name+'):', data);
 
     if(!data || !data.content || data.content.length === 0){
-      statusEl.textContent = 'API yanıt verdi ama eşleşme bulunamadı.';
-      return false;
+      statusEl.textContent = `Eşleşme bulunamadı: "${name}"`;
+      return 'nomatch';
     }
 
     // İlk eşleşen üründeki market bazlı en düşük fiyatları çıkar
@@ -987,20 +1000,21 @@ async function liveUpdateCard(card, name){
     const byMarket = {};
     (product.productDepotInfoList || []).forEach(d=>{
       const key = d.marketAdi || d.depotName || 'Bilinmeyen';
-      if(/tarım\s*kredi/i.test(key)) return; // Tarım Kredi hariç tutuluyor
+      if(/tar[ıi]m[\s_-]*kredi/i.test(key)) return; // Tarım Kredi hariç tutuluyor (tüm yazım biçimleri)
       if(!byMarket[key] || d.price < byMarket[key]) byMarket[key] = d.price;
     });
     const marketNames = Object.keys(byMarket);
     if(marketNames.length === 0){
       statusEl.textContent = '✓ Ürün bulundu ama fiyat listesi boş.';
-      return false;
+      return 'nomatch';
     }
     const cheapest = marketNames.reduce((a,b)=> byMarket[a] < byMarket[b] ? a : b);
 
     // Kartı gerçek canlı veriyle güncelle
     if(product.imageUrl){
       const iconEl = card.querySelector('.prod-icon');
-      iconEl.innerHTML = `<img src="${product.imageUrl}" alt="" style="width:100%;height:100%;object-fit:contain;border-radius:10px;">`;
+      const fallbackEmoji = iconEl.textContent.trim() || '🛒';
+      iconEl.innerHTML = `<img src="${product.imageUrl}" alt="" style="width:100%;height:100%;object-fit:contain;border-radius:10px;" onerror="this.parentElement.textContent='${fallbackEmoji}';">`;
     }
     card.querySelector('.prod-sub').textContent = `${product.brand || ''} · CANLI VERİ`;
     const bestTag = card.querySelector('.best-tag');
@@ -1012,11 +1026,11 @@ async function liveUpdateCard(card, name){
     }).join('');
 
     statusEl.textContent = `✓ Canlı veri yüklendi (${product.title || name})`;
-    return true;
+    return 'ok';
   }catch(err){
-    statusEl.textContent = '✕ Canlı sorgu başarısız (tarayıcı/CORS engeli olabilir). Örnek veri gösteriliyor.';
-    console.error(err);
-    return false;
+    statusEl.textContent = '✕ Ağ/CORS hatası — internet bağlantınızı kontrol edin.';
+    console.error('Canlı sorgu hatası ('+name+'):', err);
+    return 'networkerror';
   }
 }
 
@@ -1033,22 +1047,25 @@ async function bulkUpdateVisible(){
   const updateBtn = document.getElementById('navUpdateBtn');
   const progressEl = document.getElementById('updateProgress');
   updateBtn.disabled = true;
-  let ok = 0, fail = 0;
+  const counts = { ok:0, nomatch:0, httperror:0, networkerror:0 };
   for(let i = 0; i < cards.length; i++){
     progressEl.textContent = `Güncelleniyor: ${i+1}/${cards.length}`;
     const card = cards[i];
     const nameAttr = card.querySelector('.live-btn');
     const name = nameAttr ? nameAttr.dataset.name : null;
     if(name){
-      const success = await liveUpdateCard(card, name);
-      if(success) ok++; else fail++;
+      const result = await liveUpdateCard(card, name);
+      counts[result] = (counts[result] || 0) + 1;
     }
     // API'yi yormamak için istekler arasında bekleme
     await new Promise(r => setTimeout(r, 500));
   }
-  progressEl.textContent = `Bitti: ${ok} güncellendi, ${fail} başarısız.`;
+  const parts = [`${counts.ok} güncellendi`];
+  if(counts.nomatch) parts.push(`${counts.nomatch} eşleşme yok`);
+  if(counts.httperror || counts.networkerror) parts.push(`${counts.httperror + counts.networkerror} hata`);
+  progressEl.textContent = `Bitti: ${parts.join(', ')}.`;
   updateBtn.disabled = false;
-  setTimeout(()=>{ progressEl.textContent = ''; }, 6000);
+  setTimeout(()=>{ progressEl.textContent = ''; }, 8000);
 }
 
 function renderAll(){
