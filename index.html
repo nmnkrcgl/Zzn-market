@@ -765,6 +765,13 @@ function searchableName(p){
   return base;
 }
 
+const GENERIC_BRAND_LABELS = new Set(['Yerel Üretici', 'İthal', 'Fırından', 'Deniz Ürünleri', 'Generic']);
+function liveSearchQuery(p){
+  const name = searchableName(p);
+  if(GENERIC_BRAND_LABELS.has(p.brand)) return name;
+  return `${p.brand} ${name}`;
+}
+
 function productCard(p){
   const rows = MARKETS.map(m => {
     const isBest = m === p.cheapestMarket;
@@ -800,7 +807,7 @@ function productCard(p){
     <div class="price-table">${rows}</div>
     <div class="prod-actions">
       <button class="btn buy-now-btn" data-id="${p.id}">🛒 Satın Al</button>
-      <button class="btn live-btn" data-name="${searchableName(p).replace(/"/g,'&quot;')}">⟳ Canlı dene</button>
+      <button class="btn live-btn" data-name="${liveSearchQuery(p).replace(/"/g,'&quot;')}">⟳ Canlı dene</button>
       <button class="history-toggle-btn btn" data-id="${p.id}">📈 Fiyat geçmişi</button>
     </div>
     <div class="history-panel" id="hist-${p.id}">
@@ -927,12 +934,19 @@ function renderProducts(){
   prodGrid.querySelectorAll('.buy-now-btn').forEach(btn=>{
     btn.addEventListener('click', ()=>{
       const id = Number(btn.dataset.id);
+      const live = liveMatches.get(String(id));
+      if(live){
+        goToStore(live);
+        return;
+      }
       const product = PRODUCTS.find(p => p.id === id);
       if(!product) return;
       goToStore(product);
     });
   });
 }
+
+const liveMatches = new Map(); // id(string) -> {cheapestMarket, links, title} — canlı sorguda gerçekten eşleşen ürün
 
 function goToStore(product){
   const url = product.links[product.cheapestMarket];
@@ -1001,12 +1015,25 @@ async function liveUpdateCard(card, name){
       return 'nomatch';
     }
 
+    // Gerçek API'nin market isimlerini ("a101", "sok" vb.) bizim standart
+    // isimlerimize (A101, ŞOK vb.) çeviriyoruz — hem görünüm hem link için.
+    function normalizeMarket(key){
+      const k = key.toLocaleLowerCase('tr-TR');
+      if(k.includes('a101')) return 'A101';
+      if(k.includes('bim')) return 'BİM';
+      if(k.includes('carrefour')) return 'CarrefourSA';
+      if(k.includes('migros')) return 'Migros';
+      if(k.includes('sok') || k.includes('şok')) return 'ŞOK';
+      return key;
+    }
+
     // İlk eşleşen üründeki market bazlı en düşük fiyatları çıkar
     const product = data.content[0];
     const byMarket = {};
     (product.productDepotInfoList || []).forEach(d=>{
-      const key = d.marketAdi || d.depotName || 'Bilinmeyen';
-      if(/tar[ıi]m[\s_-]*kredi/i.test(key)) return; // Tarım Kredi hariç tutuluyor (tüm yazım biçimleri)
+      const rawKey = d.marketAdi || d.depotName || 'Bilinmeyen';
+      if(/tar[ıi]m[\s_-]*kredi/i.test(rawKey)) return; // Tarım Kredi hariç tutuluyor (tüm yazım biçimleri)
+      const key = normalizeMarket(rawKey);
       if(!byMarket[key] || d.price < byMarket[key]) byMarket[key] = d.price;
     });
     const marketNames = Object.keys(byMarket);
@@ -1015,6 +1042,17 @@ async function liveUpdateCard(card, name){
       return 'nomatch';
     }
     const cheapest = marketNames.reduce((a,b)=> byMarket[a] < byMarket[b] ? a : b);
+
+    // "Satın Al" butonunun, ekranda gösterilen GERÇEK eşleşen ürüne gitmesi için
+    // linkleri statik demo adıyla değil, canlı API'den gelen gerçek ürün başlığıyla kuruyoruz.
+    const realTitle = product.title || name;
+    const liveLinks = {};
+    marketNames.forEach(m=>{
+      liveLinks[m] = JS_LINK_TEMPLATES[m]
+        ? JS_LINK_TEMPLATES[m](realTitle)
+        : `https://www.google.com/search?q=${encodeURIComponent(m + ' ' + realTitle)}`;
+    });
+    liveMatches.set(String(id), { cheapestMarket: cheapest, links: liveLinks, title: realTitle });
 
     // Kartı gerçek canlı veriyle güncelle
     if(product.imageUrl){
