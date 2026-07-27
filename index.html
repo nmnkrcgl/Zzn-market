@@ -753,10 +753,16 @@ function searchableName(p){
   // "Ekonomik Paket" / "Aile Boyu" gerçek market veritabanında bulunmayan,
   // sadece çeşitlilik için üretilmiş etiketlerdir; canlı sorguda çıkarılır.
   const SYNTHETIC_PACKS = ['Ekonomik Paket', 'Aile Boyu'];
+  let base = p.name;
   if(SYNTHETIC_PACKS.includes(p.weight)){
-    return p.name.replace(new RegExp('\\s*'+p.weight+'$'), '').trim();
+    base = p.name.replace(new RegExp('\\s*'+p.weight+'$'), '').trim();
   }
-  return p.name;
+  // Parantezli açıklamalar ("(Dana)", "(Çarliston)" vb.) sadece bizim kendi
+  // kataloğumuzda ayrım için var; gerçek marketlerin arama motoru parantez
+  // karakterlerini iyi işlemediği için alakasız sonuçlara yol açabiliyor.
+  // Parantezleri kaldırıp içindeki kelimeyi düz metin olarak bırakıyoruz.
+  base = base.replace(/[()]/g, '').replace(/\s+/g, ' ').trim();
+  return base;
 }
 
 function productCard(p){
