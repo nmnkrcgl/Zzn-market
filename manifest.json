@@ -2,7 +2,7 @@
   "id": "/",
   "name": "ZN - Mersin Market Fiyat Karşılaştırma",
   "short_name": "ZN Market",
-  "description": "A101, BİM, CarrefourSA, Migros, Tarım Kredi ve ŞOK fiyatlarını Mersin'de karşılaştırın.",
+  "description": "A101, CarrefourSA, Migros ve ŞOK fiyatlarını Mersin'de karşılaştırın.",
   "categories": ["shopping", "lifestyle", "food"],
   "start_url": "./index.html",
   "scope": "./",
