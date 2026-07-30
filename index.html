@@ -261,7 +261,7 @@
 
 <footer>
   <div class="footer-inner">
-    <strong>ZN</strong> — A101, CarrefourSA, Migros ve ŞOK fiyatlarını Mersin özelinde karşılaştıran uygulama. Listedeki ürün ve fiyatlar, gerçek marketfiyati.org.tr veri formatına uygun şekilde hazırlanmış <strong>örnek (demo) başlangıç verisidir</strong>. Bir ürünü ilk görüntülediğinizde veya "Satın Al"a bastığınızda, uygulama tarayıcınızdan TÜBİTAK Market Fiyatı API'sine (<span class="mono">api.marketfiyati.org.tr/api/v2/search</span>) Mersin koordinatlarıyla gerçek bir istek gönderir; başarılı olursa fiyat, marka, görsel ve "Satın Al" bağlantısını gerçek veriyle günceller. Her gün ilk kez açtığınız bir kategori/arama otomatik olarak canlı veriyle tazelenir. Sepete ekleme/ödeme işlemini güvenlik nedeniyle her zaman kendiniz, ilgili market sitesinde tamamlarsınız; hiçbir uygulama sizin adınıza otomatik ödeme yapamaz.
+    <strong>ZN</strong> — A101, CarrefourSA, Migros ve ŞOK fiyatlarını Mersin özelinde karşılaştıran uygulama. Listedeki ürün ve fiyatlar, gerçek marketfiyati.org.tr veri formatına uygun şekilde hazırlanmış <strong>örnek (demo) başlangıç verisidir</strong>. Her sabah 06:00'dan sonra bir kategori/arama ilk kez açıldığında, görünen ilk ürünler (büyük kategorilerde ilk 24) otomatik olarak tarayıcınızdan TÜBİTAK Market Fiyatı API'sine (<span class="mono">api.marketfiyati.org.tr/api/v2/search</span>) gerçek bir istek göndererek fiyat, marka ve görselle tazelenir. "Satın Al"a bastığınızda ürün henüz canlı veriyle eşleşmemişse önce bu sorgu yapılır, ancak gerçek bir eşleşme bulunursa mağazaya gidilir. Sepete ekleme/ödeme işlemini güvenlik nedeniyle her zaman kendiniz, ilgili market sitesinde tamamlarsınız; hiçbir uygulama sizin adınıza otomatik ödeme yapamaz.
   </div>
 </footer>
 
@@ -627,20 +627,30 @@ function renderProducts(){
 function renderAll(){ renderCategories(); renderProducts(); }
 
 /* ================= Günlük otomatik güncelleme ================= */
-const DAILY_KEY = 'zn_last_daily_update_date';
-function todayStr(){ return new Date().toISOString().slice(0,10); }
+const DAILY_KEY = 'zn_last_daily_update_period';
+function currentUpdatePeriodKey(){
+  // Güncelleme "günü" her sabah 06:00'da başlar. Saat 06:00'dan önceyse
+  // hâlâ bir önceki günün döneminde sayılırız.
+  const now = new Date();
+  const sixAM = new Date(now); sixAM.setHours(6,0,0,0);
+  const periodStart = now < sixAM ? new Date(sixAM.getTime() - 24*3600*1000) : sixAM;
+  return periodStart.toISOString().slice(0,10);
+}
 function maybeAutoDailyUpdate(results){
   let last = null;
   try{ last = localStorage.getItem(DAILY_KEY); }catch(e){}
-  if(last === todayStr()) return; // bugün zaten yapıldı
-  if(results.length === 0 || results.length > 40) return; // büyük listeleri otonom yormayalım
-  try{ localStorage.setItem(DAILY_KEY, todayStr()); }catch(e){}
-  setTimeout(()=> bulkUpdateVisible(true), 500);
+  const periodKey = currentUpdatePeriodKey();
+  if(last === periodKey) return; // bu sabah 06:00'dan beri zaten yapıldı
+  if(results.length === 0) return;
+  try{ localStorage.setItem(DAILY_KEY, periodKey); }catch(e){}
+  // Büyük kategorilerde API'yi yormamak için sadece ilk 24 ürünü (görünen ilk ekran) sessizce tazeliyoruz.
+  setTimeout(()=> bulkUpdateVisible(true, 24), 500);
 }
 
 /* ================= Toplu güncelleme ("Güncelle" butonu + günlük otomatik) ================= */
-async function bulkUpdateVisible(silent){
-  const cards = Array.from(prodGrid.querySelectorAll('.prod-card'));
+async function bulkUpdateVisible(silent, limit){
+  const allCards = Array.from(prodGrid.querySelectorAll('.prod-card'));
+  const cards = (silent && limit) ? allCards.slice(0, limit) : allCards;
   if(cards.length === 0){
     if(!silent) alert('Önce bir kategori seçin veya arama yapın, sonra güncelleyin.');
     return;
