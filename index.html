@@ -150,6 +150,7 @@
   }
   .buy-btn:disabled{ opacity:.65; cursor:default; }
   .live-status{ font-size:11px; color:var(--ink-soft); font-style:italic; min-height:14px; }
+  .price-disclaimer{ font-size:10px; color:var(--ink-soft); opacity:.75; margin-top:-4px; }
 
   .empty{ text-align:center; padding:60px 20px; color:var(--ink-soft); }
   .empty .big{ font-size:38px; margin-bottom:10px; }
@@ -233,7 +234,7 @@
       </div>
       <div>
         <div class="locale-pill">📍 Mersin</div>
-        <div style="font-size:9px; color:#8f8a78; text-align:right; margin-top:4px;">Sürüm 2026-07-31.2</div>
+        <div style="font-size:9px; color:#8f8a78; text-align:right; margin-top:4px;">Sürüm 2026-07-31.3</div>
       </div>
     </div>
   </div>
@@ -574,6 +575,7 @@ function productCard(p){
       <span class="price">${fmt(p.cheapestPrice)}</span>
     </div>
     <div class="price-table">${rows}</div>
+    <div class="price-disclaimer">Yaklaşık fiyat — kesin fiyatı markette doğrulayın.</div>
     <button class="buy-btn" data-id="${p.id}">🛒 Satın Al</button>
     <div class="live-status"></div>
   </div>`;
