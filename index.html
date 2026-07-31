@@ -233,7 +233,7 @@
       </div>
       <div>
         <div class="locale-pill">📍 Mersin</div>
-        <div style="font-size:9px; color:#8f8a78; text-align:right; margin-top:4px;">Sürüm 2026-07-31.1</div>
+        <div style="font-size:9px; color:#8f8a78; text-align:right; margin-top:4px;">Sürüm 2026-07-31.2</div>
       </div>
     </div>
   </div>
@@ -382,7 +382,11 @@ function currentResults(){
 
 /* ================= Canlı sorgu için yardımcılar ================= */
 function searchableName(p){
-  const base = p.name.replace(/[()]/g, '').replace(/\s+/g, ' ').trim();
+  let base = p.name.replace(/[()]/g, '');
+  // Boşluklu tek tire (" - ") bazı arama motorlarında "hariç tut" operatörü
+  // olarak yorumlanıp sıfır sonuca yol açabiliyor; boşlukla değiştiriyoruz.
+  base = base.replace(/\s-\s/g, ' ');
+  base = base.replace(/\s+/g, ' ').trim();
   return base;
 }
 const GENERIC_BRAND_LABELS = new Set(['Yerel Üretici', 'İthal', 'Fırından', 'Deniz Ürünleri', 'Generic']);
